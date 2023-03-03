@@ -1,0 +1,32 @@
+@startuml
+
+
+cloud {
+
+    package "Container" {
+
+        [DLL] -left-> [Device]
+
+        [Moongose] -left-> [DLL]
+
+    }
+
+}
+
+[Gateway] -up-> [Moongose]
+
+[HONO] -left-> [Gateway]
+
+[RabbitMQ] -down-> [HONO]
+
+[Ditto] --> [RabbitMQ]
+
+[InfluxDB] -right-> [Ditto]
+
+[Grafana] -right-> [InfluxDB]
+
+[Unity WebGL] -right-> [Grafana]
+
+[Unity WebGL] ..> [Device] : sync
+
+@end
