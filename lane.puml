@@ -1,0 +1,29 @@
+@startuml
+
+
+    package "Container" {
+
+        [DLL] -left-> [设备]
+
+        [Moongose] -left-> [DLL]
+
+    }
+
+[MTC] --> [Moongose] : 远程/本地设备控制
+[MTC] ..> [DLL] : 本地设备控制
+
+[MTC] --> [日志] : 写入
+
+
+cloud {
+
+    package "站级云" {
+
+[日志] --> [RabbitMQ] : 传输
+
+        [设备状态展示] <-- [RabbitMQ]
+
+    }
+
+}
+@end
