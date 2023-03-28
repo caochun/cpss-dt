@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: c2e-iotdb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: c2e-iotdb
+  template:
+    metadata:
+      labels:
+        app: c2e-iotdb
+    spec:
+      containers:
+      - image: apache/iotdb:1.0.0-standalone
+        name: c2e-iotdb
+        ports:
+        - containerPort: 6667
+        - containerPort: 18080
+        env:
+        - name: enable_rest_service
+          value: "true"
+        - name: dn_rpc_address
+          value: 0.0.0.0
+        volumeMounts:
+        - name: iotdb-storage-data
+          mountPath: /iotdb/data
+      volumes:
+      - name: iotdb-storage-data
+        persistentVolumeClaim:
+          claimName: c2e-pvc-iotdb

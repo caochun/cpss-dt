@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    io.kompose.service: kafka
+  name: c2e-kafka-1
+spec:
+  ports:
+  - name: "9094"
+    port: 9094
+    targetPort: 9094
+  - name: "9092"
+    port: 9092
+    targetPort: 9092
+  selector:
+    io.kompose.service: kafka
+  type: NodePort

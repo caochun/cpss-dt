@@ -1,0 +1,32 @@
+demoDevice:
+  tenant: "org.i2ec.projects.c2e"
+  deviceId: "demo-device"
+  password: "demo-secret"
+
+honoConnection:
+  username: "ditto-c2e"
+  password: "verysecret"
+
+# Configuration properties for Eclipse Hono.
+hono:
+  messagingNetworkTypes:
+  - "kafka"
+  useLoadBalancer: false
+  kafka:
+    auth:
+      sasl:
+        jaas:
+          clientUsers:
+            - "hono"
+            - "ditto-c2e"
+          clientPasswords:
+            - "hono-secret"
+            - "verysecret"
+    externalAccess:
+      service:
+        type: "NodePort"
+
+# Configuration properties for Eclipse Ditto.
+ditto:
+  swaggerui:
+    enabled: false

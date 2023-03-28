@@ -1,0 +1,15 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: c2e-iotdb
+spec:
+  selector:
+    app: c2e-iotdb
+  type: NodePort
+  ports:
+    - port: 6667
+      targetPort: 6667
+      name: iotdb
+    - port: 18080
+      targetPort: 18080
+      name: iotdb-rest

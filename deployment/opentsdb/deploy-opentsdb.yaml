@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: c2e-opentsdb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: c2e-opentsdb
+  template:
+    metadata:
+      labels:
+        app: c2e-opentsdb
+    spec:
+      containers:
+      - image: petergrace/opentsdb-docker
+        name: c2e-opentsdb
+        ports:
+        - containerPort: 4242

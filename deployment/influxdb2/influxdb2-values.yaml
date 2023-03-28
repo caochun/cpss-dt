@@ -1,0 +1,8 @@
+service:
+  type: NodePort
+image:
+  pullPolicy: Always
+adminUser:
+  password: password
+persistence:
+  storageClass: influxdb2

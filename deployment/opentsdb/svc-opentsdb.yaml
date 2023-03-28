@@ -1,0 +1,11 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: c2e-opentsdb
+spec:
+  selector:
+    app: c2e-opentsdb
+  type: NodePort
+  ports:
+    - port: 4242
+      targetPort: 4242

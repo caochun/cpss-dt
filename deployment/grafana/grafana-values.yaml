@@ -1,0 +1,16 @@
+adminPassword: password
+
+service:
+  type: NodePort
+
+persistence:
+  enabled: true
+  storageClassName: grafana
+
+plugins:
+  - agenty-flowcharting-panel
+  - https://box.nju.edu.cn/f/4ff97821e42042c99e39/?dl=1;iotdb-grafana-plugin
+
+grafana.ini:
+  plugins:
+    allow_loading_unsigned_plugins: apache-iotdb-datasource
