@@ -103,7 +103,7 @@ Run:
 ```bash
 kubectl apply -f grafana/sc-grafana.yaml -n $NS
 kubectl apply -f grafana/pv-grafana.yaml -n $NS
-helm install $RELEASE-grafana -f deployment/grafana-values.yaml grafana/grafana
+helm install $RELEASE-grafana -f grafana/grafana-values.yaml grafana/grafana
 ```
 
 You need to install plugins under host path `/opentwins/grafana/plugins` manually.
