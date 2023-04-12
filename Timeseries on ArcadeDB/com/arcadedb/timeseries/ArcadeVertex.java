@@ -35,8 +35,10 @@ public abstract class ArcadeVertex {
     // set this vertex to dirty
     public void setAsDirty(){
         // ensure vertex is in cache
-        if (!cahced)
+        if (!cahced) {
             manager.cache.put(vertex.getIdentity(), this);
+            cahced = true;
+        }
         dirty = true;
     }
 }
