@@ -26,6 +26,9 @@ public abstract class ArcadeVertex {
                 throw new RuntimeException(e);
             }
             dirty = false;
+            // put new vertex into cache
+            if (!cahced)
+                manager.putCache(this);
         }
     }
 
@@ -35,10 +38,8 @@ public abstract class ArcadeVertex {
     // set this vertex to dirty
     public void setAsDirty(){
         // ensure vertex is in cache
-        if (!cahced) {
-            manager.cache.put(vertex.getIdentity(), this);
-            cahced = true;
-        }
+        if (!cahced)
+            manager.putCache(this);
         dirty = true;
     }
 }

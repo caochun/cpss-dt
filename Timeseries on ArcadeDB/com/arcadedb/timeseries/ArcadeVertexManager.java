@@ -39,13 +39,15 @@ public class ArcadeVertexManager {
         return new RID(database, bucketId, offset);
     }
 
-    // create new ArcadeVertex
+    /** create new ArcadeVertex,
+     * this vertex will not be persisted until save() called
+     * @param vertexType type name of vertex
+     * @param builder a ArcadeVertex builder from a single Vertex
+     * @return new ArcadeVertex object
+     */
     public ArcadeVertex newArcadeVertex(String vertexType, ArcadeVertexBuilder builder) throws TimeseriesException {
         ArcadeVertex newVertex = builder.build(database.newVertex(vertexType));
-        newVertex.setAsDirty();
-
-        cache.put(newVertex.vertex.getIdentity(), newVertex);
-        newVertex.cahced = true;
+        newVertex.dirty = true;
 
         return newVertex;
     }
@@ -58,10 +60,17 @@ public class ArcadeVertexManager {
         }
         result = builder.build(database.lookupByRID(rid, true).asVertex());
 
-        cache.put(rid, result);
-        result.cahced = true;
+        putCache(result);
 
         return result;
+    }
+
+    public void putCache(ArcadeVertex vertex){
+        RID vertexRID = vertex.vertex.getIdentity();
+        if (vertexRID != null){
+            cache.put(vertexRID, vertex);
+            vertex.cahced = true;
+        }
     }
 
     // save all dirty vertexes
