@@ -56,7 +56,7 @@ public class StatsBlockRoot extends StatsBlock{
     }
 
     @Override
-    public void insert(DataPoint data) throws TimeseriesException {
+    public boolean insert(DataPoint data) throws TimeseriesException {
         if (childStartTime.size() == 0)
             throw new TimeseriesException("cannot insert datapoint as there's no child block");
 
@@ -85,11 +85,13 @@ public class StatsBlockRoot extends StatsBlock{
         }
 
         boolean isInsertLatest = pos == childRID.size() - 1;
-        if (!isInsertLatest) {
-            statistics.insert(data);
-            setAsDirty();
-        }
-        StatsBlock.getStatsBlockNonRoot(manager, childRID.get(pos), this, childStartTime.get(pos), isInsertLatest).insert(data);
+        return StatsBlock.getStatsBlockNonRoot(manager, childRID.get(pos), this, measurement, degree, dataType, childStartTime.get(pos), isInsertLatest).insert(data);
+    }
+
+    @Override
+    public void appendStats(DataPoint data) throws TimeseriesException {
+        this.statistics.insert(data);
+        setAsDirty();
     }
 
     @Override
@@ -154,7 +156,7 @@ public class StatsBlockRoot extends StatsBlock{
         Statistics resultStats;
         if (endTime >= childStartTime.get(lastChildIndex)) {
             // calc latest child's statistics as it is out of current statistics
-            resultStats = StatsBlock.getStatsBlockNonRoot(manager, childRID.get(lastChildIndex), this, childStartTime.get(lastChildIndex), true)
+            resultStats = StatsBlock.getStatsBlockNonRoot(manager, childRID.get(lastChildIndex), this, measurement, degree, dataType, childStartTime.get(lastChildIndex), true)
                     .aggregativeQuery(startTime, endTime);
             lastChildIndex--;
         }else{
@@ -197,14 +199,38 @@ public class StatsBlockRoot extends StatsBlock{
 
         // merge non-latest block's statistics
         while (pos <= lastChildIndex && childStartTime.get(pos) <= endTime){
-            resultStats.merge(StatsBlock.getStatsBlockNonRoot(manager, childRID.get(pos), this, childStartTime.get(pos), false).aggregativeQuery(startTime, endTime));
+            resultStats.merge(StatsBlock.getStatsBlockNonRoot(manager, childRID.get(pos), this, measurement, degree, dataType, childStartTime.get(pos), false).aggregativeQuery(startTime, endTime));
             pos++;
         }
         return resultStats;
     }
 
     @Override
-    public DataPointSet nonAggregativeQuery(long startTime, long endTime) {
-        return null;
+    public DataPointSet periodQuery(long startTime, long endTime) throws TimeseriesException {
+        // locate first block
+        int pos = -1;
+        if (childStartTime.get(0) >= startTime){
+            // start from head
+            pos = 0;
+        }else {
+            // binary search
+            int low = 0, high = childRID.size() - 1;
+            while (low <= high) {
+                int mid = (low + high) >>> 1;
+                long midStartTime = childStartTime.get(mid);
+                if (midStartTime > startTime)
+                    high = mid - 1;
+                else if (midStartTime < startTime)
+                    low = mid + 1;
+                else {
+                    pos = mid;
+                    break;
+                }
+            }
+            if (low > high)
+                pos = high;
+        }
+
+        return StatsBlock.getStatsBlockNonRoot(manager, childRID.get(pos), this, measurement, degree, dataType, childStartTime.get(pos), pos == childRID.size()-1).periodQuery(startTime, endTime);
     }
 }

@@ -86,18 +86,22 @@ public class TimeseriesEngine {
         return treeRoot;
     }
 
-    public void insertDataPoint(Vertex object, String measurement, DataType dataType, DataPoint dataPoint) throws TimeseriesException {
-        insertDataPoint(object, measurement, dataType, dataPoint, StatsBlock.DEFAULT_TREE_DEGREE);
+    public boolean insertDataPoint(Vertex object, String measurement, DataType dataType, DataPoint dataPoint) throws TimeseriesException {
+        return insertDataPoint(object, measurement, dataType, dataPoint, StatsBlock.DEFAULT_TREE_DEGREE);
     }
 
-    public void insertDataPoint(Vertex object, String measurement, DataType dataType, DataPoint dataPoint, int statsTreeDegree) throws TimeseriesException {
+    public boolean insertDataPoint(Vertex object, String measurement, DataType dataType, DataPoint dataPoint, int statsTreeDegree) throws TimeseriesException {
         StatsBlockRoot root = getOrNewStatsTreeRoot(object, measurement, dataType, statsTreeDegree);
         dataPoint = root.dataType.checkAndConvertDataPoint(dataPoint);
-        root.insert(dataPoint);
+        return root.insert(dataPoint);
     }
 
     public Statistics aggregativeQuery(Vertex object, String measurement, long startTime, long endTime) throws TimeseriesException {
         return getStatsTreeRoot(object, measurement).aggregativeQuery(startTime, endTime);
+    }
+
+    public DataPointSet periodQuery(Vertex object, String measurement, long startTime, long endTime) throws TimeseriesException {
+        return getStatsTreeRoot(object, measurement).periodQuery(startTime, endTime);
     }
 
     public void begin(){

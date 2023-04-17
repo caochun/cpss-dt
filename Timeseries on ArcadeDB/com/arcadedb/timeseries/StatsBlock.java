@@ -87,12 +87,12 @@ public abstract class StatsBlock extends ArcadeVertex{
         });
     }
 
-    public static StatsBlock getStatsBlockNonRoot(ArcadeVertexManager manager, RID rid, StatsBlock parent, long startTime, boolean isLatest) throws TimeseriesException {
+    public static StatsBlock getStatsBlockNonRoot(ArcadeVertexManager manager, RID rid, StatsBlock parent, String measurement, int degree, DataType dataType, long startTime, boolean isLatest) throws TimeseriesException {
         StatsBlock statsBlock = (StatsBlock) manager.getArcadeVertex(rid, vertex1 -> {
             Binary binary = new Binary(vertex1.getBinary("stat"));
             switch (binary.getByte()){
                 case StatsBlockInternal.BLOCK_TYPE -> {
-                    StatsBlockInternal internal = new StatsBlockInternal(manager, vertex1, parent.measurement, parent.degree, parent.dataType, startTime, isLatest);
+                    StatsBlockInternal internal = new StatsBlockInternal(manager, vertex1, measurement, degree, dataType, startTime, isLatest);
                     internal.statistics = Statistics.getStatisticsFromBinary(internal.dataType, binary);
                     int childSize = binary.getInt();
                     for (int i=0; i<childSize; i++){
@@ -102,7 +102,7 @@ public abstract class StatsBlock extends ArcadeVertex{
                     return internal;
                 }
                 case StatsBlockLeaf.BLOCK_TYPE -> {
-                    StatsBlockLeaf leaf = new StatsBlockLeaf(manager, vertex1, parent.measurement, parent.degree, parent.dataType, startTime, isLatest);
+                    StatsBlockLeaf leaf = new StatsBlockLeaf(manager, vertex1, measurement, degree, dataType, startTime, isLatest);
                     leaf.statistics = Statistics.getStatisticsFromBinary(leaf.dataType, binary);
                     leaf.prevRID = manager.getRID(binary.getInt(), binary.getLong());
                     leaf.succRID = manager.getRID(binary.getInt(), binary.getLong());
@@ -116,7 +116,7 @@ public abstract class StatsBlock extends ArcadeVertex{
                 }
             }
         });
-        // override cached object whose parent was unknown
+        // override cached object whose parent changed
         statsBlock.setParent(parent);
         statsBlock.startTime = startTime;
         statsBlock.isLatest = isLatest;
@@ -125,13 +125,23 @@ public abstract class StatsBlock extends ArcadeVertex{
 
     public abstract void setParent(StatsBlock parent);
 
-    public abstract void insert(DataPoint data) throws TimeseriesException;
+    /**
+     *
+     * @param data the data point to insert
+     * @return if the data point is successfully inserted
+     * @throws TimeseriesException
+     */
+    public abstract boolean insert(DataPoint data) throws TimeseriesException;
 
+    // append statistics of out-of-order data point
+    public abstract void appendStats(DataPoint data) throws TimeseriesException;
+
+    // append statistics of latest child block
     public abstract void appendStats(Statistics stats) throws TimeseriesException;
 
     public abstract void addChild(StatsBlock child) throws TimeseriesException;
 
     public abstract Statistics aggregativeQuery(long startTime, long endTime) throws TimeseriesException;
 
-    public abstract DataPointSet nonAggregativeQuery(long startTime, long endTime);
+    public abstract DataPointSet periodQuery(long startTime, long endTime) throws TimeseriesException;
 }

@@ -2,14 +2,13 @@ package com.arcadedb.test;
 
 import com.arcadedb.database.Database;
 import com.arcadedb.database.DatabaseFactory;
-import com.arcadedb.database.RID;
 import com.arcadedb.graph.Vertex;
 import com.arcadedb.timeseries.*;
 import indi.hjhk.log.Logger;
 
 import java.util.Random;
 
-public class TimeseriesPersistentTest {
+public class TimeseriesPeriodQuertTest {
     public static void main(String[] args) {
         DatabaseFactory dbf = new DatabaseFactory("./databases/tsTest");
 
@@ -24,37 +23,48 @@ public class TimeseriesPersistentTest {
         if (!database.getSchema().existsType("test")){
             database.getSchema().createVertexType("test");
         }
+        Vertex testVertex = database.newVertex("test").save();
         database.commit();
 
-
-        Vertex testVertex = database.lookupByRID(new RID(database, 1, 16), false).asVertex();
-        Logger.logOnStdout("tested vertex rid is "+testVertex.getIdentity());
+        Logger.logOnStdout("created vertex rid is "+testVertex.getIdentity());
         TimeseriesEngine tsEngine = new TimeseriesEngine(database);
 
         tsEngine.begin();
         try {
-            int testSize = 123456789;
+            long startTime = System.currentTimeMillis();
+
+            final int testSize = 10000000;
+            final int commitSize = 1000000;
 
             Random ran = new Random();
 
-            for (int i=0; i<20; i++){
-                int queryStart = ran.nextInt(testSize);
-                int queryEnd = ran.nextInt(queryStart, testSize);
-                long ans = (long) (queryEnd + queryStart) * (queryEnd - queryStart + 1) / 2;
+            long periodStartTime = System.currentTimeMillis();
 
-                long startTime = System.currentTimeMillis();
+            for (int i=0; i<testSize; i++){
+                if (i > 0 && i % commitSize == 0) {
+                    tsEngine.commit();
 
-                LongStatistics statistics = (LongStatistics) tsEngine.aggregativeQuery(testVertex, "status", queryStart, queryEnd);
-                long sum = statistics.sum;
-                long elapsed = System.currentTimeMillis() - startTime;
-                Logger.logOnStdout("query [%d, %d] get %s in %d ms with correctSum=%d, correct=%s", queryStart, queryEnd, statistics.toPrettyPrintString(), elapsed, ans, sum == ans);
+                    long periodElapsed = System.currentTimeMillis() - periodStartTime;
+                    periodStartTime = System.currentTimeMillis();
+                    Logger.logOnStdout("inserted datapoints range=[%d, %d) using %d ms", i-commitSize , i, periodElapsed);
+
+                    tsEngine.begin();
+                }
+                tsEngine.insertDataPoint(testVertex, "status", new DataType(DataType.BaseType.LONG, 0), new LongDataPoint(i, i));
             }
+
+            tsEngine.commit();
+
+            long elapsed = System.currentTimeMillis() - startTime;
+            Logger.logOnStdout("insert "+testSize+" datapoints into status of testVertex using "+elapsed+" ms");
+
+            tsEngine.begin();
 
             for (int i=0; i<20; i++){
                 int queryStart = ran.nextInt(testSize);
                 int queryEnd = ran.nextInt(queryStart, testSize);
                 Logger.logOnStdout("querying [%d, %d]:", queryStart, queryEnd);
-                long startTime = System.currentTimeMillis();
+                startTime = System.currentTimeMillis();
 
                 DataPointSet rs = tsEngine.periodQuery(testVertex, "status", queryStart, queryEnd);
                 DataPoint dp;
@@ -71,13 +81,13 @@ public class TimeseriesPersistentTest {
                 if (cur != queryEnd)
                     Logger.logOnStderr("result should end at %d but end at %d", queryEnd, cur);
 
-                long elapsed = System.currentTimeMillis() - startTime;
+                elapsed = System.currentTimeMillis() - startTime;
                 Logger.logOnStdout("query [%d, %d] finished in %d ms", queryStart, queryEnd, elapsed);
             }
 
         } catch (TimeseriesException e) {
             e.printStackTrace();
-            database.rollback();
+            tsEngine.rollback();
             database.close();
             return;
         }

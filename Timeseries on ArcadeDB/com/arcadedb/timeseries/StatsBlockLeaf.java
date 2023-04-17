@@ -77,7 +77,7 @@ public class StatsBlockLeaf extends StatsBlock{
     }
 
     @Override
-    public void insert(DataPoint data) throws TimeseriesException {
+    public boolean insert(DataPoint data) throws TimeseriesException {
         if (data.timestamp < startTime)
             throw new TimeseriesException("target dataPoint should not be handled by this leaf");
 
@@ -107,12 +107,14 @@ public class StatsBlockLeaf extends StatsBlock{
                 else if (midTime > data.timestamp)
                     high = mid - 1;
                 else
-                    throw new DuplicateTimestampException("cannot insert DataPoint with existing timestamp");
+                    return false;
             }
             pos = low;
         }
-        statistics.insert(data);
         dataList.add(pos, data);
+        statistics.insert(data);
+        if (!isLatest)
+            parent.appendStats(data);
 
         if (isLatest){
             // commit latest block if full
@@ -156,7 +158,7 @@ public class StatsBlockLeaf extends StatsBlock{
                 this.statistics = Statistics.countStats(dataType, this.dataList, true);
 
                 // link leaves
-                StatsBlockLeaf succLeaf = (StatsBlockLeaf) StatsBlock.getStatsBlockNonRoot(manager, this.succRID, parent, -1, false);
+                StatsBlockLeaf succLeaf = (StatsBlockLeaf) StatsBlock.getStatsBlockNonRoot(manager, this.succRID, null, measurement, degree, dataType, -1, false);
                 newLeaf.succRID = this.succRID;
                 newLeaf.prevRID = this.vertex.getIdentity();
                 newLeaf.save();
@@ -169,6 +171,12 @@ public class StatsBlockLeaf extends StatsBlock{
         }
 
         setAsDirty();
+        return true;
+    }
+
+    @Override
+    public void appendStats(DataPoint data) throws TimeseriesException {
+        throw new TimeseriesException("leaf node should not append statistics");
     }
 
     @Override
@@ -178,7 +186,6 @@ public class StatsBlockLeaf extends StatsBlock{
 
     @Override
     public void appendStats(Statistics stats) throws TimeseriesException {
-        throw new TimeseriesException("leaf node should not append statistics");
     }
 
     @Override
@@ -247,7 +254,10 @@ public class StatsBlockLeaf extends StatsBlock{
     }
 
     @Override
-    public DataPointSet nonAggregativeQuery(long startTime, long endTime) {
-        return null;
+    public DataPointSet periodQuery(long startTime, long endTime) throws TimeseriesException {
+        if (startTime < this.startTime)
+            throw new TimeseriesException("period query over-headed");
+
+        return new DataPointSet(startTime, endTime, this.vertex.getIdentity(), manager, measurement, degree, dataType);
     }
 }
