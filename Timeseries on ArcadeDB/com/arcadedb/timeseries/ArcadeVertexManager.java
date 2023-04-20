@@ -47,7 +47,6 @@ public class ArcadeVertexManager {
      */
     public ArcadeVertex newArcadeVertex(String vertexType, ArcadeVertexBuilder builder) throws TimeseriesException {
         ArcadeVertex newVertex = builder.build(database.newVertex(vertexType));
-        newVertex.dirty = true;
 
         return newVertex;
     }

@@ -1,9 +1,9 @@
 package com.arcadedb.timeseries;
 
 import com.arcadedb.database.Binary;
+import com.arcadedb.database.Document;
+import com.arcadedb.database.MutableDocument;
 import com.arcadedb.database.RID;
-import com.arcadedb.graph.MutableVertex;
-import com.arcadedb.graph.Vertex;
 
 import java.util.ArrayList;
 
@@ -20,15 +20,15 @@ public class StatsBlockInternal extends StatsBlock{
     public ArrayList<RID> childRID = new ArrayList<>();
     public ArrayList<Long> childStartTime = new ArrayList<>();
 
-    public StatsBlockInternal(ArcadeVertexManager manager, Vertex vertex, String measurement, int degree, DataType dataType, long startTime, boolean isLatest) {
-        super(manager, vertex, measurement, degree, dataType, startTime, isLatest);
+    public StatsBlockInternal(ArcadeDocumentManager manager, Document document, String measurement, int degree, DataType dataType, long startTime, boolean isLatest) {
+        super(manager, document, measurement, degree, dataType, startTime, isLatest);
     }
 
     @Override
-    public MutableVertex serializeVertex() throws TimeseriesException {
+    public MutableDocument serializeDocument() throws TimeseriesException {
         int statSize = HEADER_WITHOUT_STATS_AND_CHILD + Statistics.bytesToWrite(dataType) + degree * CHILD_SIZE;
 
-        MutableVertex modifiedVertex = vertex.modify();
+        MutableDocument mutableDocument = document.modify();
         Binary binary = new Binary(statSize, false);
         binary.putByte(BLOCK_TYPE);
         statistics.serialize(binary);
@@ -42,8 +42,8 @@ public class StatsBlockInternal extends StatsBlock{
             throw new TimeseriesException("stat header size exceeded");
 
         binary.size(statSize);
-        modifiedVertex.set("stat", binary.toByteArray());
-        return modifiedVertex;
+        mutableDocument.set("stat", binary.toByteArray());
+        return mutableDocument;
     }
 
     @Override
@@ -122,14 +122,14 @@ public class StatsBlockInternal extends StatsBlock{
             pos = low;
         }
 
-        childRID.add(pos, child.vertex.getIdentity());
+        childRID.add(pos, child.document.getIdentity());
         childStartTime.add(pos, child.startTime);
 
         if (isLatest){
             if (childRID.size() == degree + 1) {
                 // create new internal to store last child
-                StatsBlockInternal newInternal = (StatsBlockInternal) manager.newArcadeVertex(PREFIX_STATSBLOCK + measurement, vertex1 -> {
-                    return new StatsBlockInternal(manager, vertex1, measurement, degree, dataType, childStartTime.get(degree), true);
+                StatsBlockInternal newInternal = (StatsBlockInternal) manager.newArcadeDocument(PREFIX_STATSBLOCK + measurement, document1 -> {
+                    return new StatsBlockInternal(manager, document1, measurement, degree, dataType, childStartTime.get(degree), true);
                 });
 
                 StatsBlock lastChild = StatsBlock.getStatsBlockNonRoot(manager, childRID.get(degree), newInternal, measurement, degree, dataType, childStartTime.get(degree), true);
@@ -137,7 +137,7 @@ public class StatsBlockInternal extends StatsBlock{
                 childStartTime.remove(degree);
 
                 newInternal.statistics = lastChild.statistics.clone();
-                newInternal.childRID.add(lastChild.vertex.getIdentity());
+                newInternal.childRID.add(lastChild.document.getIdentity());
                 newInternal.childStartTime.add(lastChild.startTime);
                 newInternal.save();
 
@@ -157,8 +157,8 @@ public class StatsBlockInternal extends StatsBlock{
             int totalSize = childRID.size();
             int splitedSize = totalSize / 2;
 
-            StatsBlockInternal newInternal = (StatsBlockInternal) manager.newArcadeVertex(PREFIX_STATSBLOCK + measurement, vertex1 -> {
-                return new StatsBlockInternal(manager, vertex1, measurement, degree, dataType, childStartTime.get(splitedSize), false);
+            StatsBlockInternal newInternal = (StatsBlockInternal) manager.newArcadeDocument(PREFIX_STATSBLOCK + measurement, document1 -> {
+                return new StatsBlockInternal(manager, document1, measurement, degree, dataType, childStartTime.get(splitedSize), false);
             });
 
             // remake statistics of latter block

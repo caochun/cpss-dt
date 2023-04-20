@@ -13,7 +13,7 @@ public class DataPointSet {
     public final long queryEndTime;
     // rid of first leaf block
     public final RID firstLeafRID;
-    public final ArcadeVertexManager manager;
+    public final ArcadeDocumentManager manager;
     public final String measurement;
     public final int degree;
     public final DataType dataType;
@@ -25,7 +25,7 @@ public class DataPointSet {
     // start leaf's rid for next page load
     public RID nextBlockRID;
 
-    public DataPointSet(long queryStartTime, long queryEndTime, RID firstLeafRID, ArcadeVertexManager manager, String measurement, int degree, DataType dataType) {
+    public DataPointSet(long queryStartTime, long queryEndTime, RID firstLeafRID, ArcadeDocumentManager manager, String measurement, int degree, DataType dataType) {
         this.queryStartTime = queryStartTime;
         this.queryEndTime = queryEndTime;
         this.firstLeafRID = firstLeafRID;

@@ -1,5 +1,6 @@
 package com.arcadedb.timeseries;
 
+import com.arcadedb.database.RID;
 import com.arcadedb.graph.MutableVertex;
 import com.arcadedb.graph.Vertex;
 
@@ -19,16 +20,22 @@ public abstract class ArcadeVertex {
 
     // save ArcadeDB vertex
     public void save(){
-        if (dirty){
+        if (vertex.getIdentity() == null){
+            // new vertex
+            try {
+                serializeVertex().save();
+            } catch (TimeseriesException e) {
+                throw new RuntimeException(e);
+            }
+            manager.putCache(this);
+            dirty = false;
+        }else if (dirty){
             try {
                 serializeVertex().save();
             } catch (TimeseriesException e) {
                 throw new RuntimeException(e);
             }
             dirty = false;
-            // put new vertex into cache
-            if (!cahced)
-                manager.putCache(this);
         }
     }
 

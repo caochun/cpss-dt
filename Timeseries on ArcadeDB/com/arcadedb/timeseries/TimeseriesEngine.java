@@ -6,6 +6,7 @@ import com.arcadedb.graph.Edge;
 import com.arcadedb.graph.MutableEdge;
 import com.arcadedb.graph.MutableVertex;
 import com.arcadedb.graph.Vertex;
+import com.arcadedb.schema.DocumentType;
 import com.arcadedb.schema.VertexType;
 
 import java.util.Iterator;
@@ -16,11 +17,11 @@ public class TimeseriesEngine {
     public static final int MEASUREMENT_EDGE_BUCKETS = 1;
     public static final int STATSBLOCK_BUCKETS = 1;
     public final Database database;
-    public final ArcadeVertexManager manager;
+    public final ArcadeDocumentManager manager;
 
     public TimeseriesEngine(Database database) {
         this.database = database;
-        this.manager = new ArcadeVertexManager(database);
+        this.manager = new ArcadeDocumentManager(database);
     }
 
     public StatsBlockRoot getStatsTreeRoot(Vertex object, String measurement) throws TimeseriesException {
@@ -31,13 +32,13 @@ public class TimeseriesEngine {
         if (!database.getSchema().existsType(measurementEdgeType))
             throw new TimeseriesException("measurement edgeType "+measurementEdgeType+" not exist");
 
-        // object's statsBlock vertex not exist
+        // object's statsBlock document not exist
         if (!database.getSchema().existsType(StatsBlock.PREFIX_STATSBLOCK+objectMeasurement))
             throw new TimeseriesException("object's statsBlock vertexType "+StatsBlock.PREFIX_STATSBLOCK+objectMeasurement+" not exist");
 
         Iterator<Edge> edgeIterator = object.getEdges(Vertex.DIRECTION.OUT, measurementEdgeType).iterator();
 
-        // no existing statsBlockRoot, create one
+        // no existing statsBlockRoot
         if (!edgeIterator.hasNext()){
             throw new TimeseriesException("object has no measurement "+measurement);
         }else{
@@ -58,9 +59,9 @@ public class TimeseriesEngine {
         if (!database.getSchema().existsType(measurementEdgeType))
             database.getSchema().createEdgeType(measurementEdgeType, MEASUREMENT_EDGE_BUCKETS);
 
-        // create object's measurement vertex if not exist
+        // create object's measurement document if not exist
         if (!database.getSchema().existsType(StatsBlock.PREFIX_STATSBLOCK+objectMeasurement)) {
-            VertexType statsBlockType = database.getSchema().createVertexType(StatsBlock.PREFIX_STATSBLOCK + objectMeasurement, STATSBLOCK_BUCKETS);
+            DocumentType statsBlockType = database.getSchema().createDocumentType(StatsBlock.PREFIX_STATSBLOCK + objectMeasurement, STATSBLOCK_BUCKETS);
             statsBlockType.createProperty("stat", "BINARY");
             statsBlockType.createProperty("data", "BINARY");
         }
@@ -73,7 +74,7 @@ public class TimeseriesEngine {
         if (!edgeIterator.hasNext()){
             treeRoot = StatsBlock.newStatsTree(manager, objectMeasurement, dataType, statsTreeDegree);
             // link edge
-            object.newEdge(measurementEdgeType, treeRoot.vertex, false).save();
+            object.newEdge(measurementEdgeType, treeRoot.document, false).save();
         }else{
             Edge measurementedge = edgeIterator.next();
             // have more than 1 statsTree

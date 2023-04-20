@@ -1,9 +1,9 @@
 package com.arcadedb.timeseries;
 
 import com.arcadedb.database.Binary;
+import com.arcadedb.database.Document;
+import com.arcadedb.database.MutableDocument;
 import com.arcadedb.database.RID;
-import com.arcadedb.graph.MutableVertex;
-import com.arcadedb.graph.Vertex;
 
 import java.util.ArrayList;
 
@@ -19,9 +19,9 @@ public class StatsBlockRoot extends StatsBlock{
     public ArrayList<RID> childRID = new ArrayList<>();
     public ArrayList<Long> childStartTime = new ArrayList<>();
 
-    public StatsBlockRoot(ArcadeVertexManager manager, Vertex vertex, String measurement, int degree, DataType dataType) {
+    public StatsBlockRoot(ArcadeDocumentManager manager, Document document, String measurement, int degree, DataType dataType) {
         // root is always latest and start at 0
-        super(manager, vertex, measurement, degree, dataType, 0, true);
+        super(manager, document, measurement, degree, dataType, 0, true);
     }
 
     @Override
@@ -30,10 +30,10 @@ public class StatsBlockRoot extends StatsBlock{
     }
 
     @Override
-    public MutableVertex serializeVertex() throws TimeseriesException {
+    public MutableDocument serializeDocument() throws TimeseriesException {
         int statSize = HEADER_WITHOUT_STATS_AND_CHILD + Statistics.bytesToWrite(dataType) + degree * CHILD_SIZE;
 
-        MutableVertex modifiedVertex = vertex.modify();
+        MutableDocument modifiedDocument = document.modify();
         Binary binary = new Binary(statSize, false);
         binary.putByte(BLOCK_TYPE);
         binary.putInt(degree);
@@ -50,9 +50,9 @@ public class StatsBlockRoot extends StatsBlock{
             throw new TimeseriesException("stat header size exceeded");
 
         binary.size(statSize);
-        modifiedVertex.set("stat", binary.toByteArray());
+        modifiedDocument.set("stat", binary.toByteArray());
 
-        return modifiedVertex;
+        return modifiedDocument;
     }
 
     @Override
@@ -125,12 +125,12 @@ public class StatsBlockRoot extends StatsBlock{
             pos = low;
         }
 
-        childRID.add(pos, child.vertex.getIdentity());
+        childRID.add(pos, child.document.getIdentity());
         childStartTime.add(pos, child.startTime);
 
         if (childRID.size() == degree){
-            StatsBlockInternal newInternal = (StatsBlockInternal) manager.newArcadeVertex(PREFIX_STATSBLOCK+measurement, vertex1 -> {
-                return new StatsBlockInternal(manager, vertex1, measurement, degree, dataType, 0, true);
+            StatsBlockInternal newInternal = (StatsBlockInternal) manager.newArcadeDocument(PREFIX_STATSBLOCK+measurement, document1 -> {
+                return new StatsBlockInternal(manager, document1, measurement, degree, dataType, 0, true);
             });
             newInternal.childRID = this.childRID;
             newInternal.childStartTime = this.childStartTime;
@@ -139,7 +139,7 @@ public class StatsBlockRoot extends StatsBlock{
 
             this.childRID = new ArrayList<>();
             this.childStartTime = new ArrayList<>();
-            this.childRID.add(newInternal.vertex.getIdentity());
+            this.childRID.add(newInternal.document.getIdentity());
             this.childStartTime.add(0L);
         }
         setAsDirty();

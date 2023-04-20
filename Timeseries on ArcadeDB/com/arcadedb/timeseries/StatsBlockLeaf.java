@@ -1,9 +1,9 @@
 package com.arcadedb.timeseries;
 
 import com.arcadedb.database.Binary;
+import com.arcadedb.database.Document;
+import com.arcadedb.database.MutableDocument;
 import com.arcadedb.database.RID;
-import com.arcadedb.graph.MutableVertex;
-import com.arcadedb.graph.Vertex;
 
 import javax.xml.crypto.Data;
 import java.util.ArrayList;
@@ -21,25 +21,25 @@ public class StatsBlockLeaf extends StatsBlock{
     public RID prevRID;
     public RID succRID;
 
-    public StatsBlockLeaf(ArcadeVertexManager manager, Vertex vertex, String measurement, int degree, DataType dataType, long startTime, boolean isLatest) throws TimeseriesException {
-        super(manager, vertex, measurement, degree, dataType, startTime, isLatest);
+    public StatsBlockLeaf(ArcadeDocumentManager manager, Document document, String measurement, int degree, DataType dataType, long startTime, boolean isLatest) throws TimeseriesException {
+        super(manager, document, measurement, degree, dataType, startTime, isLatest);
         statistics = Statistics.newEmptyStats(dataType);
     }
 
     void loadData() throws TimeseriesException {
         if (dataList == null) {
             dataList = new ArrayList<>();
-            Binary binary = new Binary(vertex.getBinary("data"));
+            Binary binary = new Binary(document.getBinary("data"));
             for (int i = 0; i < statistics.count; i++)
                 dataList.add(DataPoint.getDataPointFromBinary(dataType, binary));
         }
     }
 
     @Override
-    public MutableVertex serializeVertex() throws TimeseriesException {
+    public MutableDocument serializeDocument() throws TimeseriesException {
         int statSize = HEADER_WITHOUT_STATS + Statistics.bytesToWrite(dataType);
 
-        MutableVertex modifiedVertex = vertex.modify();
+        MutableDocument mutableDocument = document.modify();
         // put stat
         Binary statBinary = new Binary(statSize, false);
         statBinary.putByte(BLOCK_TYPE);
@@ -53,7 +53,7 @@ public class StatsBlockLeaf extends StatsBlock{
             throw new TimeseriesException("stat header size exceeded");
 
         statBinary.size(statSize);
-        modifiedVertex.set("stat", statBinary.toByteArray());
+        mutableDocument.set("stat", statBinary.toByteArray());
 
         // put data
         if (dataList != null){
@@ -66,9 +66,9 @@ public class StatsBlockLeaf extends StatsBlock{
                 throw new TimeseriesException("data block size exceeded");
 
             dataBinary.size(MAX_DATA_BLOCK_SIZE);
-            modifiedVertex.set("data", dataBinary.toByteArray());
+            mutableDocument.set("data", dataBinary.toByteArray());
         }
-        return modifiedVertex;
+        return mutableDocument;
     }
 
     @Override
@@ -122,18 +122,18 @@ public class StatsBlockLeaf extends StatsBlock{
                 parent.appendStats(this.statistics);
 
                 DataPoint lastDataPoint = dataList.get(maxdataSize - 1);
-                StatsBlockLeaf newLeaf = (StatsBlockLeaf) manager.newArcadeVertex(PREFIX_STATSBLOCK+measurement, vertex1 -> {
-                    return new StatsBlockLeaf(manager, vertex1, measurement, degree, dataType, lastDataPoint.timestamp+1, true);
+                StatsBlockLeaf newLeaf = (StatsBlockLeaf) manager.newArcadeDocument(PREFIX_STATSBLOCK+measurement, document1 -> {
+                    return new StatsBlockLeaf(manager, document1, measurement, degree, dataType, lastDataPoint.timestamp+1, true);
                 });
                 this.isLatest = false;
 
                 newLeaf.dataList = new ArrayList<>();
 
                 // link leaves
-                newLeaf.prevRID = this.vertex.getIdentity();
+                newLeaf.prevRID = this.document.getIdentity();
                 newLeaf.succRID = manager.nullRID;
                 newLeaf.save();
-                this.succRID = newLeaf.vertex.getIdentity();
+                this.succRID = newLeaf.document.getIdentity();
 
                 parent.addChild(newLeaf);
             }
@@ -145,8 +145,8 @@ public class StatsBlockLeaf extends StatsBlock{
                 int splitedSize = totalSize / 2;
                 DataPoint LatterfirstDataPoint = dataList.get(splitedSize);
 
-                StatsBlockLeaf newLeaf = (StatsBlockLeaf) manager.newArcadeVertex(PREFIX_STATSBLOCK+measurement, vertex1 -> {
-                    return new StatsBlockLeaf(manager, vertex1, measurement, degree, dataType, LatterfirstDataPoint.timestamp, false);
+                StatsBlockLeaf newLeaf = (StatsBlockLeaf) manager.newArcadeDocument(PREFIX_STATSBLOCK+measurement, document1 -> {
+                    return new StatsBlockLeaf(manager, document1, measurement, degree, dataType, LatterfirstDataPoint.timestamp, false);
                 });
                 newLeaf.dataList = new ArrayList<>(this.dataList.subList(splitedSize, totalSize));
 
@@ -160,10 +160,10 @@ public class StatsBlockLeaf extends StatsBlock{
                 // link leaves
                 StatsBlockLeaf succLeaf = (StatsBlockLeaf) StatsBlock.getStatsBlockNonRoot(manager, this.succRID, null, measurement, degree, dataType, -1, false);
                 newLeaf.succRID = this.succRID;
-                newLeaf.prevRID = this.vertex.getIdentity();
+                newLeaf.prevRID = this.document.getIdentity();
                 newLeaf.save();
-                this.succRID = newLeaf.vertex.getIdentity();
-                succLeaf.prevRID = newLeaf.vertex.getIdentity();
+                this.succRID = newLeaf.document.getIdentity();
+                succLeaf.prevRID = newLeaf.document.getIdentity();
                 succLeaf.setAsDirty();
 
                 parent.addChild(newLeaf);
@@ -197,7 +197,7 @@ public class StatsBlockLeaf extends StatsBlock{
 
         // if range covers this block
         if (startTime <= statistics.firstTime && endTime >= statistics.lastTime){
-            return this.statistics;
+            return this.statistics.clone();
         }
 
         if (dataList == null)
@@ -258,6 +258,6 @@ public class StatsBlockLeaf extends StatsBlock{
         if (startTime < this.startTime)
             throw new TimeseriesException("period query over-headed");
 
-        return new DataPointSet(startTime, endTime, this.vertex.getIdentity(), manager, measurement, degree, dataType);
+        return new DataPointSet(startTime, endTime, this.document.getIdentity(), manager, measurement, degree, dataType);
     }
 }
