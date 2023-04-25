@@ -2,8 +2,6 @@ package com.arcadedb.timeseries;
 
 import com.arcadedb.database.Binary;
 
-import javax.xml.crypto.Data;
-
 public class DataType {
     public enum BaseType{
         LONG((byte) 0, "LONG"),

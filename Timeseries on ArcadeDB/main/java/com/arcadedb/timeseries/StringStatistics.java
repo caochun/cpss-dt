@@ -90,7 +90,7 @@ public class StringStatistics extends Statistics{
      * @param length max length of string
      */
     public static int bytesToWrite(int length){
-        int bytesToWriteString = Statistics.bytesToWriteUnsignedNumber(length) + length;
+        int bytesToWriteString = bytesToWriteUnsignedNumber(length) + length;
         return 24 + 2 * bytesToWriteString;
     }
 

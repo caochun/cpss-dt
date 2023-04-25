@@ -10,7 +10,6 @@ import com.arcadedb.schema.DocumentType;
 import com.arcadedb.schema.VertexType;
 
 import java.util.Iterator;
-import java.util.Map;
 
 public class TimeseriesEngine {
     public static final String PREFIX_MEASUREMENT_EDGE = "_meas_";

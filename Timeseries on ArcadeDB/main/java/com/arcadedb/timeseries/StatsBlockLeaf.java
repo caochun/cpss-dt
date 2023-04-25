@@ -5,7 +5,6 @@ import com.arcadedb.database.Document;
 import com.arcadedb.database.MutableDocument;
 import com.arcadedb.database.RID;
 
-import javax.xml.crypto.Data;
 import java.util.ArrayList;
 
 public class StatsBlockLeaf extends StatsBlock{
@@ -158,7 +157,7 @@ public class StatsBlockLeaf extends StatsBlock{
                 this.statistics = Statistics.countStats(dataType, this.dataList, true);
 
                 // link leaves
-                StatsBlockLeaf succLeaf = (StatsBlockLeaf) StatsBlock.getStatsBlockNonRoot(manager, this.succRID, null, measurement, degree, dataType, -1, false);
+                StatsBlockLeaf succLeaf = (StatsBlockLeaf) getStatsBlockNonRoot(manager, this.succRID, null, measurement, degree, dataType, -1, false);
                 newLeaf.succRID = this.succRID;
                 newLeaf.prevRID = this.document.getIdentity();
                 newLeaf.save();
@@ -180,12 +179,13 @@ public class StatsBlockLeaf extends StatsBlock{
     }
 
     @Override
-    public void addChild(StatsBlock child) throws TimeseriesException {
-        throw new TimeseriesException("cannot add child to leaf node");
+    public void appendStats(Statistics stats) throws TimeseriesException {
+        throw new TimeseriesException("leaf node should not append statistics");
     }
 
     @Override
-    public void appendStats(Statistics stats) throws TimeseriesException {
+    public void addChild(StatsBlock child) throws TimeseriesException {
+        throw new TimeseriesException("cannot add child to leaf node");
     }
 
     @Override

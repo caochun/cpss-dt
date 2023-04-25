@@ -1,5 +1,3 @@
-package com.arcadedb.test;
-
 import com.arcadedb.database.Database;
 import com.arcadedb.database.DatabaseFactory;
 import com.arcadedb.graph.Vertex;

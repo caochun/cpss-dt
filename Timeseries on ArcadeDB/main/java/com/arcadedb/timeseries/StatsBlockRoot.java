@@ -7,30 +7,37 @@ import com.arcadedb.database.RID;
 
 import java.util.ArrayList;
 
-public class StatsBlockInternal extends StatsBlock{
-    public static final byte BLOCK_TYPE = 1;
+public class StatsBlockRoot extends StatsBlock{
+    public static final byte BLOCK_TYPE = 0;
 
     /**
      * size of stat header without statistics and child list:
-     * block type(1B) + child size(4B)
+     * block type(1B) + degree(4B) + data type(5B) + child size(4B)
      */
-    public static final int HEADER_WITHOUT_STATS_AND_CHILD = 5;
+    public static final int HEADER_WITHOUT_STATS_AND_CHILD = 14;
 
-    public StatsBlock parent;
     public ArrayList<RID> childRID = new ArrayList<>();
     public ArrayList<Long> childStartTime = new ArrayList<>();
 
-    public StatsBlockInternal(ArcadeDocumentManager manager, Document document, String measurement, int degree, DataType dataType, long startTime, boolean isLatest) {
-        super(manager, document, measurement, degree, dataType, startTime, isLatest);
+    public StatsBlockRoot(ArcadeDocumentManager manager, Document document, String measurement, int degree, DataType dataType) {
+        // root is always latest and start at 0
+        super(manager, document, measurement, degree, dataType, 0, true);
+    }
+
+    @Override
+    public void setParent(StatsBlock parent) {
+        // ignore
     }
 
     @Override
     public MutableDocument serializeDocument() throws TimeseriesException {
         int statSize = HEADER_WITHOUT_STATS_AND_CHILD + Statistics.bytesToWrite(dataType) + degree * CHILD_SIZE;
 
-        MutableDocument mutableDocument = document.modify();
+        MutableDocument modifiedDocument = document.modify();
         Binary binary = new Binary(statSize, false);
         binary.putByte(BLOCK_TYPE);
+        binary.putInt(degree);
+        dataType.serialize(binary);
         statistics.serialize(binary);
         binary.putInt(childRID.size());
         for (int i=0; i<childRID.size(); i++){
@@ -38,17 +45,14 @@ public class StatsBlockInternal extends StatsBlock{
             binary.putLong(childRID.get(i).getPosition());
             binary.putLong(childStartTime.get(i));
         }
+
         if (binary.size() > statSize)
             throw new TimeseriesException("stat header size exceeded");
 
         binary.size(statSize);
-        mutableDocument.set("stat", binary.toByteArray());
-        return mutableDocument;
-    }
+        modifiedDocument.set("stat", binary.toByteArray());
 
-    @Override
-    public void setParent(StatsBlock parent) {
-        this.parent = parent;
+        return modifiedDocument;
     }
 
     @Override
@@ -80,14 +84,13 @@ public class StatsBlockInternal extends StatsBlock{
                 pos = high;
         }
 
-        boolean isInsertLatest = this.isLatest && (pos == childRID.size() - 1);
-        return StatsBlock.getStatsBlockNonRoot(manager, childRID.get(pos), this, measurement, degree, dataType, childStartTime.get(pos), isInsertLatest).insert(data);
+        boolean isInsertLatest = pos == childRID.size() - 1;
+        return getStatsBlockNonRoot(manager, childRID.get(pos), this, measurement, degree, dataType, childStartTime.get(pos), isInsertLatest).insert(data);
     }
 
     @Override
     public void appendStats(DataPoint data) throws TimeseriesException {
         this.statistics.insert(data);
-        if (!isLatest) parent.appendStats(data);
         setAsDirty();
     }
 
@@ -125,59 +128,19 @@ public class StatsBlockInternal extends StatsBlock{
         childRID.add(pos, child.document.getIdentity());
         childStartTime.add(pos, child.startTime);
 
-        if (isLatest){
-            if (childRID.size() == degree + 1) {
-                // create new internal to store last child
-                StatsBlockInternal newInternal = (StatsBlockInternal) manager.newArcadeDocument(PREFIX_STATSBLOCK + measurement, document1 -> {
-                    return new StatsBlockInternal(manager, document1, measurement, degree, dataType, childStartTime.get(degree), true);
-                });
-
-                StatsBlock lastChild = StatsBlock.getStatsBlockNonRoot(manager, childRID.get(degree), newInternal, measurement, degree, dataType, childStartTime.get(degree), true);
-                childRID.remove(degree);
-                childStartTime.remove(degree);
-
-                newInternal.statistics = lastChild.statistics.clone();
-                newInternal.childRID.add(lastChild.document.getIdentity());
-                newInternal.childStartTime.add(lastChild.startTime);
-                newInternal.save();
-
-                // remake statistics of this block
-                this.statistics = Statistics.newEmptyStats(dataType);
-                for (int i = 0; i < degree; i++)
-                    statistics.merge(StatsBlock.getStatsBlockNonRoot(manager, childRID.get(i), this, measurement, degree, dataType, childStartTime.get(i), false).statistics);
-
-                // commit this block
-                parent.appendStats(this.statistics);
-                this.isLatest = false;
-
-                parent.addChild(newInternal);
-            }
-        }else if (childRID.size() > degree) {
-            // split into 2 blocks
-            int totalSize = childRID.size();
-            int splitedSize = totalSize / 2;
-
-            StatsBlockInternal newInternal = (StatsBlockInternal) manager.newArcadeDocument(PREFIX_STATSBLOCK + measurement, document1 -> {
-                return new StatsBlockInternal(manager, document1, measurement, degree, dataType, childStartTime.get(splitedSize), false);
+        if (childRID.size() == degree){
+            StatsBlockInternal newInternal = (StatsBlockInternal) manager.newArcadeDocument(PREFIX_STATSBLOCK+measurement, document1 -> {
+                return new StatsBlockInternal(manager, document1, measurement, degree, dataType, 0, true);
             });
-
-            // remake statistics of latter block
-            Statistics laterHalfStatics = Statistics.newEmptyStats(dataType);
-            for (int i = splitedSize; i < totalSize; i++)
-                laterHalfStatics.merge(StatsBlock.getStatsBlockNonRoot(manager, childRID.get(i), newInternal, measurement, degree, dataType, childStartTime.get(i), false).statistics);
-            newInternal.statistics = laterHalfStatics;
-            newInternal.childRID = new ArrayList<>(this.childRID.subList(splitedSize, totalSize));
-            newInternal.childStartTime = new ArrayList<>(this.childStartTime.subList(splitedSize, totalSize));
+            newInternal.childRID = this.childRID;
+            newInternal.childStartTime = this.childStartTime;
+            newInternal.statistics = this.statistics.clone();
             newInternal.save();
 
-            // remake statistics of this block
-            childRID = new ArrayList<>(childRID.subList(0, splitedSize));
-            childStartTime = new ArrayList<>(childStartTime.subList(0, splitedSize));
-            statistics = Statistics.newEmptyStats(dataType);
-            for (int i=0; i<splitedSize; i++)
-                statistics.merge(StatsBlock.getStatsBlockNonRoot(manager, childRID.get(i), this, measurement, degree, dataType, childStartTime.get(i), false).statistics);
-
-            parent.addChild(newInternal);
+            this.childRID = new ArrayList<>();
+            this.childStartTime = new ArrayList<>();
+            this.childRID.add(newInternal.document.getIdentity());
+            this.childStartTime.add(0L);
         }
         setAsDirty();
     }
@@ -186,24 +149,25 @@ public class StatsBlockInternal extends StatsBlock{
     public Statistics aggregativeQuery(long startTime, long endTime) throws TimeseriesException {
         // empty block
         if (childRID.size() == 0)
-            return null;
+            throw new TimeseriesException("root has no child to calc statistics");
+
 
         int lastChildIndex = childRID.size() - 1;
         Statistics resultStats;
-        if (isLatest && endTime >= childStartTime.get(lastChildIndex)) {
+        if (endTime >= childStartTime.get(lastChildIndex)) {
             // calc latest child's statistics as it is out of current statistics
-            resultStats = StatsBlock.getStatsBlockNonRoot(manager, childRID.get(lastChildIndex), this, measurement, degree, dataType, childStartTime.get(lastChildIndex), true)
+            resultStats = getStatsBlockNonRoot(manager, childRID.get(lastChildIndex), this, measurement, degree, dataType, childStartTime.get(lastChildIndex), true)
                     .aggregativeQuery(startTime, endTime);
             lastChildIndex--;
         }else{
             resultStats = Statistics.newEmptyStats(dataType);
         }
 
-        // if range out of this block's statistics
+        // if range out of root's statistics
         if (startTime > statistics.lastTime || endTime < statistics.firstTime){
             return resultStats;
         }
-        // if range covers this block's statistics
+        // if range covers root's statistics
         if (startTime <= statistics.firstTime && endTime >= statistics.lastTime){
             resultStats.merge(this.statistics);
             return resultStats;
@@ -235,8 +199,7 @@ public class StatsBlockInternal extends StatsBlock{
 
         // merge non-latest block's statistics
         while (pos <= lastChildIndex && childStartTime.get(pos) <= endTime){
-            resultStats.merge(StatsBlock.getStatsBlockNonRoot(manager, childRID.get(pos), this, measurement, degree, dataType, childStartTime.get(pos), false)
-                    .aggregativeQuery(startTime, endTime));
+            resultStats.merge(getStatsBlockNonRoot(manager, childRID.get(pos), this, measurement, degree, dataType, childStartTime.get(pos), false).aggregativeQuery(startTime, endTime));
             pos++;
         }
         return resultStats;
@@ -268,6 +231,6 @@ public class StatsBlockInternal extends StatsBlock{
                 pos = high;
         }
 
-        return StatsBlock.getStatsBlockNonRoot(manager, childRID.get(pos), this, measurement, degree, dataType, childStartTime.get(pos), isLatest && (pos == childRID.size()-1)).periodQuery(startTime, endTime);
+        return getStatsBlockNonRoot(manager, childRID.get(pos), this, measurement, degree, dataType, childStartTime.get(pos), pos == childRID.size()-1).periodQuery(startTime, endTime);
     }
 }
