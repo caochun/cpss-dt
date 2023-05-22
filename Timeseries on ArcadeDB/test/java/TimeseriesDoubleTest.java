@@ -3,32 +3,19 @@ import com.arcadedb.database.DatabaseFactory;
 import com.arcadedb.graph.Vertex;
 import indi.hjhk.exception.ExceptionSerializer;
 import indi.hjhk.log.Logger;
-import nju.hjh.arcadedb.timeseries.*;
-import nju.hjh.arcadedb.timeseries.datapoint.StringDataPoint;
+import nju.hjh.arcadedb.timeseries.DataType;
+import nju.hjh.arcadedb.timeseries.TimeseriesEngine;
+import nju.hjh.arcadedb.timeseries.datapoint.DoubleDataPoint;
+import nju.hjh.arcadedb.timeseries.datapoint.LongDataPoint;
 import nju.hjh.arcadedb.timeseries.exception.TimeseriesException;
-import nju.hjh.arcadedb.timeseries.statistics.StringStatistics;
+import nju.hjh.arcadedb.timeseries.statistics.DoubleStatistics;
+import nju.hjh.arcadedb.timeseries.statistics.LongStatistics;
 
-import java.util.ArrayList;
 import java.util.Random;
 
-public class TimeseriesStringTest {
-
-    /**
-     * from stack overflow
-     * <a href=https://stackoverflow.com/questions/2863852/how-to-generate-a-random-string-in-java>How to generate a random String in Java</a>
-     */
-    public static String generateString(Random rng, String characters, int length)
-    {
-        char[] text = new char[length];
-        for (int i = 0; i < length; i++)
-        {
-            text[i] = characters.charAt(rng.nextInt(characters.length()));
-        }
-        return new String(text);
-    }
-
+public class TimeseriesDoubleTest {
     public static void main(String[] args) {
-        Logger logger = Logger.getPureLogger("TSString");
+        Logger logger = Logger.getPureLogger();
         DatabaseFactory dbf = new DatabaseFactory("./databases/tsTest");
 
         Database database;
@@ -54,16 +41,8 @@ public class TimeseriesStringTest {
 
             final int testSize = 10000000;
             final int commitSize = 1000000;
-            final String charUsed = "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-            final int strLen = 10;
-
-            ArrayList<String> strList = new ArrayList<>();
 
             Random ran = new Random();
-
-            for (int i=0; i<testSize; i++){
-                strList.add(generateString(ran, charUsed, strLen));
-            }
 
             long periodStartTime = System.currentTimeMillis();
 
@@ -77,7 +56,7 @@ public class TimeseriesStringTest {
 
                     tsEngine.begin();
                 }
-                tsEngine.insertDataPoint(testVertex, "status", new DataType(DataType.BaseType.STRING, strLen), new StringDataPoint(i, strList.get(i)), false);
+                tsEngine.insertDataPoint(testVertex, "status", DataType.DOUBLE, new DoubleDataPoint(i, i/16.0), false);
             }
 
             tsEngine.commit();
@@ -90,13 +69,14 @@ public class TimeseriesStringTest {
             for (int i=0; i<20; i++){
                 int queryStart = ran.nextInt(testSize);
                 int queryEnd = ran.nextInt(queryStart, testSize);
+                double ans = (long) (queryEnd + queryStart) * (queryEnd - queryStart + 1) / 32.0;
 
                 startTime = System.currentTimeMillis();
-                StringStatistics statistics = (StringStatistics) tsEngine.aggregativeQuery(testVertex, "status", queryStart, queryEnd);
+
+                DoubleStatistics statistics = (DoubleStatistics) tsEngine.aggregativeQuery(testVertex, "status", queryStart, queryEnd);
+                double sum = statistics.sum;
                 elapsed = System.currentTimeMillis() - startTime;
-                logger.logOnStdout("query [%d, %d] get %s in %d ms with correct=%s",
-                        queryStart, queryEnd, statistics.toPrettyPrintString(), elapsed,
-                        (strList.get((int) statistics.firstTime).equals(statistics.firstValue) && strList.get((int) statistics.lastTime).equals(statistics.lastValue)));
+                logger.logOnStdout("query [%d, %d] get %s in %d ms with correctSum=%f, correct=%s", queryStart, queryEnd, statistics.toPrettyPrintString(), elapsed, ans, sum == ans);
             }
 
         } catch (TimeseriesException e) {

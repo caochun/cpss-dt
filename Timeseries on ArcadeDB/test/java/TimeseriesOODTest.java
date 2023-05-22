@@ -1,8 +1,12 @@
 import com.arcadedb.database.Database;
 import com.arcadedb.database.DatabaseFactory;
 import com.arcadedb.graph.Vertex;
-import com.arcadedb.timeseries.*;
+import indi.hjhk.exception.ExceptionSerializer;
 import indi.hjhk.log.Logger;
+import nju.hjh.arcadedb.timeseries.*;
+import nju.hjh.arcadedb.timeseries.datapoint.LongDataPoint;
+import nju.hjh.arcadedb.timeseries.exception.TimeseriesException;
+import nju.hjh.arcadedb.timeseries.statistics.LongStatistics;
 
 import java.util.LinkedList;
 import java.util.Queue;
@@ -10,6 +14,7 @@ import java.util.Random;
 
 public class TimeseriesOODTest {
     public static void main(String[] args) {
+        Logger logger = Logger.getPureLogger("TSOOD");
         DatabaseFactory dbf = new DatabaseFactory("./databases/tsTest");
 
         Database database;
@@ -26,7 +31,7 @@ public class TimeseriesOODTest {
         Vertex testVertex = database.newVertex("test").save();
         database.commit();
 
-        Logger.logOnStdout("created vertex rid is "+testVertex.getIdentity());
+        logger.logOnStdout("created vertex rid is "+testVertex.getIdentity());
         TimeseriesEngine tsEngine = new TimeseriesEngine(database);
 
         tsEngine.begin();
@@ -47,7 +52,7 @@ public class TimeseriesOODTest {
                 if (ran.nextInt(100) < oodProb){
                     oodData.offer(i);
                 }else {
-                    tsEngine.insertDataPoint(testVertex, "status", new DataType(DataType.BaseType.LONG, 0), new LongDataPoint(i, i));
+                    tsEngine.insertDataPoint(testVertex, "status", DataType.LONG, new LongDataPoint(i, i), false);
                     count++;
                 }
                 if (count == commitSize){
@@ -55,19 +60,19 @@ public class TimeseriesOODTest {
 
                     long periodElapsed = System.currentTimeMillis() - periodStartTime;
                     periodStartTime = System.currentTimeMillis();
-                    Logger.logOnStdout("inserted %d datapoints using %d ms", count, periodElapsed);
+                    logger.logOnStdout("inserted %d datapoints using %d ms", count, periodElapsed);
 
                     count = 0;
                     tsEngine.begin();
                 }
             }
 
-            Logger.logOnStdout("start to insert out-of-order datapoint");
+            logger.logOnStdout("start to insert out-of-order datapoint");
 
             long oodSize = oodData.size();
             while (!oodData.isEmpty()){
                 int ood = oodData.poll();
-                tsEngine.insertDataPoint(testVertex, "status", new DataType(DataType.BaseType.LONG, 0), new LongDataPoint(ood, ood));
+                tsEngine.insertDataPoint(testVertex, "status", DataType.LONG, new LongDataPoint(ood, ood), false);
                 count++;
 
                 if (count == commitSize){
@@ -75,7 +80,7 @@ public class TimeseriesOODTest {
 
                     long periodElapsed = System.currentTimeMillis() - periodStartTime;
                     periodStartTime = System.currentTimeMillis();
-                    Logger.logOnStdout("inserted %d datapoints using %d ms", count, periodElapsed);
+                    logger.logOnStdout("inserted %d datapoints using %d ms", count, periodElapsed);
 
                     count = 0;
                     tsEngine.begin();
@@ -85,7 +90,7 @@ public class TimeseriesOODTest {
             tsEngine.commit();
 
             long elapsed = System.currentTimeMillis() - startTime;
-            Logger.logOnStdout("inserted %d datapoints including %d out-of-order ones using %d ms", testSize, oodSize, elapsed);
+            logger.logOnStdout("inserted %d datapoints including %d out-of-order ones using %d ms", testSize, oodSize, elapsed);
 
             tsEngine.begin();
             for (int i=0; i<20; i++){
@@ -98,10 +103,10 @@ public class TimeseriesOODTest {
                 LongStatistics statistics = (LongStatistics) tsEngine.aggregativeQuery(testVertex, "status", queryStart, queryEnd);
                 long sum = statistics.sum;
                 elapsed = System.currentTimeMillis() - startTime;
-                Logger.logOnStdout("query [%d, %d] get %s in %d ms with correctSum=%d, correct=%s", queryStart, queryEnd, statistics.toPrettyPrintString(), elapsed, ans, sum == ans);
+                logger.logOnStdout("query [%d, %d] get %s in %d ms with correctSum=%d, correct=%s", queryStart, queryEnd, statistics.toPrettyPrintString(), elapsed, ans, sum == ans);
             }
         } catch (TimeseriesException e) {
-            e.printStackTrace();
+            logger.logOnStderr(ExceptionSerializer.serializeAll(e));
             tsEngine.rollback();
             database.close();
             return;

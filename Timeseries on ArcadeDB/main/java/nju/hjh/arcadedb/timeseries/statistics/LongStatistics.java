@@ -1,10 +1,13 @@
-package com.arcadedb.timeseries;
+package nju.hjh.arcadedb.timeseries.statistics;
 
 import com.arcadedb.database.Binary;
+import nju.hjh.arcadedb.timeseries.datapoint.DataPoint;
+import nju.hjh.arcadedb.timeseries.datapoint.LongDataPoint;
+import nju.hjh.arcadedb.timeseries.exception.TimeseriesException;
 
 import java.util.List;
 
-public class LongStatistics extends Statistics{
+public class LongStatistics extends NumericStatistics{
     public long firstValue;
     public long lastValue;
     public long sum;
@@ -50,7 +53,41 @@ public class LongStatistics extends Statistics{
     }
 
     @Override
+    public boolean update(DataPoint oldDP, DataPoint newDP) throws TimeseriesException {
+        if (oldDP instanceof LongDataPoint oldLDP && newDP instanceof LongDataPoint newLDP){
+            if (oldDP.timestamp != newDP.timestamp)
+                throw new TimeseriesException("timestamp different when updating statistics");
+            if (oldLDP.value == max){
+                if (newLDP.value >= max){
+                    max = newLDP.value;
+                }else{
+                    return false;
+                }
+            }
+            if (oldLDP.value == min){
+                if (newLDP.value <= max){
+                    min = newLDP.value;
+                }else{
+                    return false;
+                }
+            }
+            sum += newLDP.value - oldLDP.value;
+            if (oldLDP.timestamp == firstTime){
+                firstValue = newLDP.value;
+            }
+            if (oldLDP.timestamp == lastTime){
+                lastValue = newLDP.value;
+            }
+            return true;
+        }else{
+            throw new TimeseriesException("LongStatistic can only handle LongDataPoint");
+        }
+    }
+
+    @Override
     public void insertDataList(List<DataPoint> dataList, boolean isTimeOrdered) {
+        if (dataList.size() == 0) return;
+
         count += dataList.size();
         if (isTimeOrdered) {
             LongDataPoint listFirst = (LongDataPoint) dataList.get(0);
@@ -82,7 +119,8 @@ public class LongStatistics extends Statistics{
                 if (dataPoint.timestamp < firstTime){
                     firstTime = dataPoint.timestamp;
                     firstValue = value;
-                }else if (dataPoint.timestamp > lastTime){
+                }
+                if (dataPoint.timestamp > lastTime){
                     lastTime = dataPoint.timestamp;
                     lastValue = value;
                 }
@@ -118,7 +156,7 @@ public class LongStatistics extends Statistics{
      * bytes needed to write LongStatistics
      * long(8B) * 8
      */
-    public static int bytesToWrite(){
+    public static int maxBytesRequired(){
         return 64;
     }
 
@@ -164,5 +202,30 @@ public class LongStatistics extends Statistics{
     public String toPrettyPrintString() {
         return String.format("LongStatistics{\n\tcount=%d\n\tfirstTime=%d\n\tfirstValue=%d\n\tlastTime=%d\n\tlastValue=%d\n\tsum=%d\n\tmax=%d\n\tmin=%d\n}",
                 count, firstTime, firstValue, lastTime, lastValue, sum, max, min);
+    }
+
+    @Override
+    public Object getFirstValue() {
+        return firstValue;
+    }
+
+    @Override
+    public Object getLastValue() {
+        return lastValue;
+    }
+
+    @Override
+    public Number getSum() {
+        return sum;
+    }
+
+    @Override
+    public Number getMaxValue() {
+        return max;
+    }
+
+    @Override
+    public Number getMinValue() {
+        return min;
     }
 }

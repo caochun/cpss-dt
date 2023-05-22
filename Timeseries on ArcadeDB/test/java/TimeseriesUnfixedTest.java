@@ -3,16 +3,17 @@ import com.arcadedb.database.DatabaseFactory;
 import com.arcadedb.graph.Vertex;
 import indi.hjhk.exception.ExceptionSerializer;
 import indi.hjhk.log.Logger;
-import nju.hjh.arcadedb.timeseries.*;
+import nju.hjh.arcadedb.timeseries.DataPointSet;
+import nju.hjh.arcadedb.timeseries.DataType;
+import nju.hjh.arcadedb.timeseries.TimeseriesEngine;
 import nju.hjh.arcadedb.timeseries.datapoint.StringDataPoint;
 import nju.hjh.arcadedb.timeseries.exception.TimeseriesException;
-import nju.hjh.arcadedb.timeseries.statistics.StringStatistics;
+import nju.hjh.arcadedb.timeseries.statistics.UnfixedStatistics;
 
 import java.util.ArrayList;
 import java.util.Random;
 
-public class TimeseriesStringTest {
-
+public class TimeseriesUnfixedTest {
     /**
      * from stack overflow
      * <a href=https://stackoverflow.com/questions/2863852/how-to-generate-a-random-string-in-java>How to generate a random String in Java</a>
@@ -28,7 +29,7 @@ public class TimeseriesStringTest {
     }
 
     public static void main(String[] args) {
-        Logger logger = Logger.getPureLogger("TSString");
+        Logger logger = Logger.getPureLogger("TSUnfixed");
         DatabaseFactory dbf = new DatabaseFactory("./databases/tsTest");
 
         Database database;
@@ -68,16 +69,17 @@ public class TimeseriesStringTest {
             long periodStartTime = System.currentTimeMillis();
 
             for (int i=0; i<testSize; i++){
+                int index = ran.nextInt(testSize);
                 if (i > 0 && i % commitSize == 0) {
                     tsEngine.commit();
 
                     long periodElapsed = System.currentTimeMillis() - periodStartTime;
                     periodStartTime = System.currentTimeMillis();
-                    logger.logOnStdout("inserted datapoints range=[%d, %d) using %d ms", i-commitSize , i, periodElapsed);
+                    logger.logOnStdout("inserted %d datapoints using %d ms", commitSize, periodElapsed);
 
                     tsEngine.begin();
                 }
-                tsEngine.insertDataPoint(testVertex, "status", new DataType(DataType.BaseType.STRING, strLen), new StringDataPoint(i, strList.get(i)), false);
+                tsEngine.insertDataPoint(testVertex, "status", DataType.STRING, new StringDataPoint(index, strList.get(index)), true);
             }
 
             tsEngine.commit();
@@ -92,11 +94,18 @@ public class TimeseriesStringTest {
                 int queryEnd = ran.nextInt(queryStart, testSize);
 
                 startTime = System.currentTimeMillis();
-                StringStatistics statistics = (StringStatistics) tsEngine.aggregativeQuery(testVertex, "status", queryStart, queryEnd);
+                UnfixedStatistics statistics = (UnfixedStatistics) tsEngine.aggregativeQuery(testVertex, "status", queryStart, queryEnd);
+
+                DataPointSet firstRes = tsEngine.periodQuery(testVertex, "status", statistics.firstTime, statistics.firstTime);
+                String firstValue = (String) firstRes.next().getValue();
+
+                DataPointSet lastRes = tsEngine.periodQuery(testVertex, "status", statistics.lastTime, statistics.lastTime);
+                String lastValue = (String) lastRes.next().getValue();
+
                 elapsed = System.currentTimeMillis() - startTime;
-                logger.logOnStdout("query [%d, %d] get %s in %d ms with correct=%s",
-                        queryStart, queryEnd, statistics.toPrettyPrintString(), elapsed,
-                        (strList.get((int) statistics.firstTime).equals(statistics.firstValue) && strList.get((int) statistics.lastTime).equals(statistics.lastValue)));
+                logger.logOnStdout("query [%d, %d] get %s with firstValue=%s, lastValue=%s in %d ms with correct=%s",
+                        queryStart, queryEnd, statistics.toPrettyPrintString(), firstValue, lastValue, elapsed,
+                        (strList.get((int) statistics.firstTime).equals(firstValue) && strList.get((int) statistics.lastTime).equals(lastValue)));
             }
 
         } catch (TimeseriesException e) {

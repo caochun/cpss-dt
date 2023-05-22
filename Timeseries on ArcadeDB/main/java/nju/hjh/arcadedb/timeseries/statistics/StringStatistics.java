@@ -1,10 +1,14 @@
-package com.arcadedb.timeseries;
+package nju.hjh.arcadedb.timeseries.statistics;
 
 import com.arcadedb.database.Binary;
+import nju.hjh.arcadedb.timeseries.MathUtils;
+import nju.hjh.arcadedb.timeseries.datapoint.DataPoint;
+import nju.hjh.arcadedb.timeseries.datapoint.StringDataPoint;
+import nju.hjh.arcadedb.timeseries.exception.TimeseriesException;
 
 import java.util.List;
 
-public class StringStatistics extends Statistics{
+public class StringStatistics extends FixedStatistics{
     public String firstValue;
     public String lastValue;
 
@@ -38,7 +42,26 @@ public class StringStatistics extends Statistics{
     }
 
     @Override
+    public boolean update(DataPoint oldDP, DataPoint newDP) throws TimeseriesException {
+        if (oldDP instanceof StringDataPoint oldSDP && newDP instanceof StringDataPoint newSDP){
+            if (oldDP.timestamp != newDP.timestamp)
+                throw new TimeseriesException("timestamp different when updating statistics");
+            if (oldSDP.timestamp == firstTime){
+                firstValue = newSDP.value;
+            }
+            if (oldSDP.timestamp == lastTime){
+                lastValue = newSDP.value;
+            }
+            return true;
+        }else{
+            throw new TimeseriesException("StringStatistics can only handle StringDataPoint");
+        }
+    }
+
+    @Override
     public void insertDataList(List<DataPoint> dataList, boolean isTimeOrdered) {
+        if (dataList.size() == 0) return;
+
         count += dataList.size();
         if (isTimeOrdered) {
             StringDataPoint listFirst = (StringDataPoint) dataList.get(0);
@@ -57,7 +80,8 @@ public class StringStatistics extends Statistics{
                 if (dataPoint.timestamp < firstTime){
                     firstTime = dataPoint.timestamp;
                     firstValue = value;
-                }else if (dataPoint.timestamp > lastTime){
+                }
+                if (dataPoint.timestamp > lastTime){
                     lastTime = dataPoint.timestamp;
                     lastValue = value;
                 }
@@ -89,8 +113,8 @@ public class StringStatistics extends Statistics{
      * long(8B) * 3 + String(length) * 2
      * @param length max length of string
      */
-    public static int bytesToWrite(int length){
-        int bytesToWriteString = bytesToWriteUnsignedNumber(length) + length;
+    public static int maxBytesRequired(int length){
+        int bytesToWriteString = MathUtils.bytesToWriteUnsignedNumber(length) + length;
         return 24 + 2 * bytesToWriteString;
     }
 
@@ -127,5 +151,15 @@ public class StringStatistics extends Statistics{
     public String toPrettyPrintString() {
         return String.format("StringStatistics{\n\tcount=%d\n\tfirstTime=%d\n\tfirstValue=%s\n\tlastTime=%d\n\tlastValue=%s\n}",
                 count, firstTime, firstValue, lastTime, lastValue);
+    }
+
+    @Override
+    public Object getFirstValue() {
+        return firstValue;
+    }
+
+    @Override
+    public Object getLastValue() {
+        return lastValue;
     }
 }
